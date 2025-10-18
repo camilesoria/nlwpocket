@@ -21,6 +21,7 @@ const elements = {
   list: document.getElementById("prompt-list"),
   search: document.getElementById("search-input"),
   btnNew: document.getElementById("btn-new"),
+  btnCopy: document.getElementById("btn-copy"),
 }
 
 // Update wrapper state based on contenteditable element content
@@ -80,13 +81,12 @@ function init() {
   elements.btnCollapse.addEventListener("click", closeSidebar)
 }
 
-// Using .innerHTML instead of .textContent to allow simple HTML formatting in the prompt content, like <br>
+// Using .textContent instead of .innerHTML to prevent XSS attacks
 function save() {
-  const title = elements.promptTitle.innerHTML.trim()
-  const content = elements.promptContent.innerHTML.trim()
-  const hasContent = elements.promptContent.textContent.trim()
+  const title = elements.promptTitle.textContent.trim()
+  const content = elements.promptContent.innerText.trim()
 
-  if (!title || !hasContent) {
+  if (!title || !content) {
     alert("Título e conteúdo não podem estar vazios.")
     return
   }
@@ -138,13 +138,16 @@ function load() {
 }
 //Function to create the prompt list in the sidebar
 function createPromptItem(prompt) {
+  const tmp = document.createElement("div")
+  tmp.textContent = prompt.content
+  const safeContent = tmp.textContent
+  const safeTitle = escapeHtml(prompt.title)
+
   return `
       <li class="prompt-item" data-id="${prompt.id}" data-action="select">
         <div class="prompt-item-content">
-          <span class="prompt-item-title">${escapeHtml(prompt.title)}</span>
-          <span class="prompt-item-description">${escapeHtml(
-            prompt.content
-          )}</span>
+          <span class="prompt-item-title">${safeTitle}</span>
+          <span class="prompt-item-description">${safeContent}</span>
         </div>
       <button class="btn-icon" title="Remover" data-action="remove">
         <img src="assets/remove.svg" alt="Remover" class="icon icon-trash" />
@@ -177,15 +180,31 @@ function renderList(filterText = "") {
 
 function newPrompt() {
   state.selectedID = null
-  elements.promptTitle.innerHTML = ""
-  elements.promptContent.innerHTML = ""
+  elements.promptTitle.textContent = ""
+  elements.promptContent.innerText = ""
   updateAllEditableStates()
   elements.promptTitle.focus()
+}
+
+function copySelected() {
+  if (!navigator.clipboard) {
+    alert("API de área de transferência não suportada neste navegador.")
+    return
+  }
+
+  try {
+    const content = elements.promptContent
+    navigator.clipboard.writeText(content.innerText)
+    alert("Conteúdo copiado para a área de transferência!")
+  } catch (error) {
+    console.log("Erro ao copiar para a área de transferência:", error)
+  }
 }
 
 //Events
 elements.btnSave.addEventListener("click", save)
 elements.btnNew.addEventListener("click", newPrompt)
+elements.btnCopy.addEventListener("click", copySelected)
 
 elements.search.addEventListener("input", function (event) {
   renderList(event.target.value)
@@ -213,14 +232,14 @@ elements.list.addEventListener("click", function (event) {
         // Open the most recent prompt (we unshift on save, so index 0 is the latest)
         const last = state.prompts[0]
         state.selectedID = last.id
-        elements.promptTitle.innerHTML = last.title
-        elements.promptContent.innerHTML = last.content
+        elements.promptTitle.textContent = last.title
+        elements.promptContent.innerText = last.content
         state.isDirty = false
       } else {
         // No prompts left — clear editor
         state.selectedID = null
-        elements.promptTitle.innerHTML = ""
-        elements.promptContent.innerHTML = ""
+        elements.promptTitle.textContent = ""
+        elements.promptContent.innerText = ""
       }
 
       updateAllEditableStates()
@@ -235,8 +254,8 @@ elements.list.addEventListener("click", function (event) {
 
     // Only ask for confirmation if the editor was actually modified (isDirty)
     if (state.isDirty) {
-      const currentTitle = elements.promptTitle.innerHTML.trim()
-      const currentContent = elements.promptContent.innerHTML.trim()
+      const currentTitle = elements.promptTitle.textContent.trim()
+      const currentContent = elements.promptContent.innerText.trim()
       const contentChanged =
         currentTitle !== prompt.title || currentContent !== prompt.content
 
@@ -250,8 +269,8 @@ elements.list.addEventListener("click", function (event) {
 
     // Load selected prompt into editor (preserve stored HTML)
     state.selectedID = id
-    elements.promptTitle.innerHTML = prompt.title
-    elements.promptContent.innerHTML = prompt.content
+    elements.promptTitle.textContent = prompt.title
+    elements.promptContent.innerText = prompt.content
     state.isDirty = false
 
     updateAllEditableStates()
