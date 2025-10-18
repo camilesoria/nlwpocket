@@ -1,1 +1,2 @@
+# Ignore MCP settings file containing secret keys.
 .vscode/mcp.json
